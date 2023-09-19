@@ -144,11 +144,36 @@ async function getCountryData(country) {
       throw new Error('No neighbour found!');
     }
 
+    // Add a timeout to the fetch request
+    const timeoutPromise = timeout(10); // Timeout after 10 seconds
+
     // Country 2
-    const data2 = await getJSON(
+    const data2Promise = await getJSON(
       `https://restcountries.com/v3.1/alpha/${neighbour}`,
       'Country not found'
     );
+
+    // Use Promise.race to handle either a timeout or a successful fetch
+    /*
+      Note to self:
+      - The await keyword is used to pause the execution of the code until the promise returned by Promise.race() settles. 
+      - This line effectively waits for either data2Promise or timeoutPromise to complete, whichever happens first.
+      - The result of the Promise.race() is an array containing the resolved value of the winning promise (either data2Promise or timeoutPromise). 
+      - By using destructuring assignment, you're extracting the value from the winning promise and storing it in the variable data2. 
+      - This allows you to access the data from the successful AJAX request if it completes first.
+
+      - The order does matter in the sense that the first promise to settle (either resolve or reject) will determine the outcome of the race. 
+      - So, if data2Promise settles first (i.e., the neighboring country data is successfully fetched), then data2 will be assigned that data. 
+      - On the other hand, if timeoutPromise settles first (i.e., the timeout occurs before data2Promise completes), then data2 will be undefined, and you can handle it as a timeout error.
+      - The order is significant because it defines the priority of which promise you want to handle first in the race condition. 
+      - In this case, you typically want to prioritize the AJAX request (data2Promise) over the timeout (timeoutPromise).
+    */
+    const [data2] = await Promise.race([data2Promise, timeoutPromise]);
+
+    // Check if data 2 is undefined (indicating that the timeout has occurred)
+    if (!data2) {
+      throw new Error('Request for neighbouring country timed out!');
+    }
 
     renderCountry(data2[0], 'neighbour');
   } catch (err) {
@@ -167,6 +192,14 @@ function getPosition() {
     // );
 
     navigator.geolocation.getCurrentPosition(resolve, reject);
+  });
+}
+
+function timeout(sec) {
+  return new Promise(function (_, reject) {
+    setTimeout(function () {
+      reject(new Error('Request took too long!'));
+    }, sec * 1000);
   });
 }
 
@@ -201,3 +234,13 @@ btn.addEventListener('click', whereAmI);
 
 //////////////////////////////////////////////////////////////////////////
 
+// Promise.race
+// (async function () {
+//   const res = await Promise.race([
+//     getJSON(`https://restcountries.com/v3.1/name/italy`),
+//     getJSON(`https://restcountries.com/v3.1/name/egypt`),
+//     getJSON(`https://restcountries.com/v3.1/name/mexico`),
+//   ]);
+
+//   console.log(res[0]);
+// })();
